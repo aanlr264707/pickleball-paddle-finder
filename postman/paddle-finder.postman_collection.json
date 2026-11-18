@@ -1,0 +1,544 @@
+{
+  "info": {
+    "name": "Paddle Finder API",
+    "description": "Requests and contract tests for the Paddle Finder REST API. Set baseUrl to where the API runs (default http://localhost:5001).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "paddleId",
+      "value": "1"
+    },
+    {
+      "key": "otherId",
+      "value": "2"
+    },
+    {
+      "key": "preset",
+      "value": "power-banger"
+    },
+    {
+      "key": "shape",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Reference data",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('database is up and seeded', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('ok');",
+                  "  pm.expect(body.paddles).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "metrics"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('every metric has stats', () => {",
+                  "  const metrics = pm.response.json();",
+                  "  pm.expect(metrics.map(m => m.key)).to.include.members(['power', 'swing_weight', 'spin']);",
+                  "  metrics.forEach(m => pm.expect(m.min).to.be.at.most(m.max));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "options"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('menus are present', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.all.keys('brand', 'shape', 'paddle_type', 'feel');",
+                  "  pm.collectionVariables.set('shape', body.shape[0]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Presets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/presets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "presets"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('five play styles', () => {",
+                  "  const presets = pm.response.json();",
+                  "  pm.expect(presets).to.have.lengthOf(5);",
+                  "  pm.collectionVariables.set('preset', presets[0].slug);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "item": [
+        {
+          "name": "Recommend from preferences",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filters\": {\n    \"max_price\": 220,\n    \"tournament_only\": true\n  },\n  \"preferences\": [\n    {\n      \"metric\": \"power\",\n      \"target\": \"high\",\n      \"importance\": 5\n    },\n    {\n      \"metric\": \"swing_weight\",\n      \"target\": \"medium\",\n      \"importance\": 3\n    },\n    {\n      \"metric\": \"core\",\n      \"target\": 16,\n      \"importance\": 2\n    }\n  ],\n  \"limit\": 5\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('ranked best first', () => {",
+                  "  const scores = body.results.map(r => r.score);",
+                  "  pm.expect(scores).to.eql([...scores].sort((a, b) => b - a));",
+                  "});",
+                  "pm.test('filters respected', () => {",
+                  "  body.results.forEach(r => {",
+                  "    pm.expect(r.paddle.tournament_legal).to.be.true;",
+                  "    if (r.paddle.price !== null) pm.expect(r.paddle.price).to.be.at.most(220);",
+                  "  });",
+                  "});",
+                  "pm.test('response time under 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recommend from a preset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preset\": \"{{preset}}\",\n  \"limit\": 3\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('preset applied', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.preset).to.eql(pm.collectionVariables.get('preset'));",
+                  "  pm.expect(body.results).to.have.lengthOf(3);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid importance is a 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferences\": [\n    {\n      \"metric\": \"power\",\n      \"target\": \"high\",\n      \"importance\": 9\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error names the field', () => {",
+                  "  pm.expect(pm.response.json().error.field).to.eql('preferences[0].importance');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Paddles",
+      "item": [
+        {
+          "name": "Search, sort and page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/paddles?q=joola&sort=power&order=desc&per_page=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "paddles"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "joola"
+                },
+                {
+                  "key": "sort",
+                  "value": "power"
+                },
+                {
+                  "key": "order",
+                  "value": "desc"
+                },
+                {
+                  "key": "per_page",
+                  "value": "5"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('sorted by power, descending', () => {",
+                  "  const powers = body.items.map(p => p.power).filter(v => v !== null);",
+                  "  pm.expect(powers).to.eql([...powers].sort((a, b) => b - a));",
+                  "});",
+                  "pm.test('every result matches the search', () => {",
+                  "  body.items.forEach(p => pm.expect(p.full_name.toLowerCase()).to.include('joola'));",
+                  "});",
+                  "pm.collectionVariables.set('paddleId', body.items[0].id);",
+                  "pm.collectionVariables.set('otherId', body.items[1].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Paddle detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/paddles/{{paddleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "paddles",
+                "{{paddleId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('percentiles are 0-100', () => {",
+                  "  Object.values(pm.response.json().percentiles).forEach(v => pm.expect(v).to.be.within(0, 100));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Similar paddles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/paddles/{{paddleId}}/similar?limit=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "paddles",
+                "{{paddleId}}",
+                "similar"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "4"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('four others, never itself', () => {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.have.lengthOf(4);",
+                  "  items.forEach(i => pm.expect(i.paddle.id).to.not.eql(Number(pm.collectionVariables.get('paddleId'))));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compare two paddles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/compare?ids={{paddleId}},{{otherId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compare"
+              ],
+              "query": [
+                {
+                  "key": "ids",
+                  "value": "{{paddleId}},{{otherId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('both paddles returned in order', () => {",
+                  "  pm.expect(pm.response.json().map(e => e.paddle.id)).to.eql([",
+                  "    Number(pm.collectionVariables.get('paddleId')), Number(pm.collectionVariables.get('otherId'))]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown paddle is a 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/paddles/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "paddles",
+                "999999"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('JSON error body', () => pm.expect(pm.response.json().error.status).to.eql(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/insights",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "insights"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('type counts add up to the catalog', () => {",
+                  "  const body = pm.response.json();",
+                  "  const total = body.by_type.reduce((sum, row) => sum + row.count, 0);",
+                  "  pm.expect(total).to.eql(body.summary.paddles);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

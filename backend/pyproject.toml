@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paddle-finder"
+version = "1.0.0"
+description = "Recommends pickleball paddles from lab-measured specs: pandas ETL, PostgreSQL, Flask API."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "flask>=3.0,<4",
+  "pandas>=2.1,<4",
+  "sqlalchemy>=2.0,<3",
+  "psycopg[binary]>=3.1,<4",
+  "gunicorn>=22",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
+
+[project.scripts]
+paddle-finder = "paddle_finder.cli.__main__:main"
+paddle-finder-seed = "paddle_finder.data.seed:main"
+
+[tool.setuptools.packages.find]
+include = ["paddle_finder*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["UP006", "UP007", "UP031", "UP032", "UP035", "UP037", "UP045", "B905"]

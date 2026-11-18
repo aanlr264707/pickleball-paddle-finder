@@ -1,0 +1,43 @@
+# One command runs the whole stack:  docker compose up --build
+#   web  -> http://localhost:8080   (React app; nginx proxies /api to the API)
+#   api  -> http://localhost:5001   (Flask + gunicorn)
+#   db   -> localhost:5433          (PostgreSQL 16; 5433 avoids clashing with a local Postgres)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paddle
+      POSTGRES_PASSWORD: paddle
+      POSTGRES_DB: paddles
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paddle -d paddles"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://paddle:paddle@db:5432/paddles
+    ports:
+      - "5001:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

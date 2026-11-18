@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (lint + tests on SQLite and PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paddle
+          POSTGRES_PASSWORD: paddle
+          POSTGRES_DB: paddles_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paddle -d paddles_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Tests on SQLite
+        run: pytest
+      - name: Tests on PostgreSQL, with coverage
+        run: pytest --cov=paddle_finder --cov-report=term-missing
+        env:
+          TEST_DATABASE_URL: postgresql://paddle:paddle@localhost:5432/paddles_test
+
+  frontend:
+    name: Frontend (typecheck, unit tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  api-contract:
+    name: API contract (Postman collection via Newman)
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pip install -r backend/requirements.txt
+      - name: Start the API (SQLite, seeded from the CSV)
+        working-directory: backend
+        run: |
+          python -m paddle_finder.data.seed
+          gunicorn --bind 127.0.0.1:5001 --workers 2 --daemon wsgi:app
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:5001/api/health && break; sleep 1; done
+      - name: Run the Postman collection
+        run: npx --yes newman run postman/paddle-finder.postman_collection.json --env-var baseUrl=http://127.0.0.1:5001
+
+  docker:
+    name: Docker images build
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build
